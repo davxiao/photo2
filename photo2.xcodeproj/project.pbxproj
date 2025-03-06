@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		477783852D742252002ECD82 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 477783842D742252002ECD82 /* Yams */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		472743B42D73F220004E48EF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				477783852D742252002ECD82 /* Yams in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = photo2;
 			packageProductDependencies = (
+				477783842D742252002ECD82 /* Yams */,
 			);
 			productName = photo2;
 			productReference = 472743A22D73F21F004E48EF /* photo2.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 472743992D73F21F004E48EF;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				477783832D742252002ECD82 /* XCRemoteSwiftPackageReference "Yams" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 472743A32D73F21F004E48EF /* Products */;
 			projectDirPath = "";
@@ -549,6 +558,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		477783832D742252002ECD82 /* XCRemoteSwiftPackageReference "Yams" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jpsim/Yams.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.3.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		477783842D742252002ECD82 /* Yams */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 477783832D742252002ECD82 /* XCRemoteSwiftPackageReference "Yams" */;
+			productName = Yams;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4727439A2D73F21F004E48EF /* Project object */;
 }
