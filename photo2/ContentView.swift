@@ -262,64 +262,88 @@ struct ContentView: View {
     gridLayout = Array(repeating: GridItem(.flexible(), spacing: 20), count: numberOfColumns)
   }//end func updateGridLayout
 
-  func generateThumbnails(from folderURL: URL)  {
+  func generateThumbnails(from folderURL: URL) {
     loadedFolderURL = folderURL // Store for reloading
     photoAssets.removeAll() // Clear previous results from the view
+    
+    // Create a custom executor with a fixed thread pool
+    let thumbnailExecutor = DispatchQueue(label: "com.photo2.thumbnailExecutor", attributes: .concurrent)
+    
+    Task {
+      do {
+        let fileManager = FileManager.default
+        let directoryURL = folderURL
 
-    do {
-      let fileManager = FileManager.default
-      let directoryURL = folderURL
+        // Check if the directory exists and is accessible
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+          print("Error: '\(directoryURL)' is not a valid directory or is inaccessible.")
+          return
+        }
 
-      // Check if the directory exists and is accessible
-      var isDirectory: ObjCBool = false
-      guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-        print("Error: '\(directoryURL)' is not a valid directory or is inaccessible.")
-        // Show an alert or update the UI to indicate the error.
-        return
-      }
-
-      let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey]
-      guard let enumerator = fileManager.enumerator(at: directoryURL,
+        let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey]
+        guard let enumerator = fileManager.enumerator(at: directoryURL,
                                                     includingPropertiesForKeys: resourceKeys,
                                                     options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants, .skipsPackageDescendants],
                                                     errorHandler: { (url, error) -> Bool in
-        print("Error enumerating '\(url.path)': \(error)")
-        return true // Continue enumeration even if there are errors with some files.
-      }) else {
-        //show error and alert
-        print("Error: enumerator is nil")
-        return
-      }
-
-      for case let fileURL as URL in enumerator {
-        let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
-
-        //check if the file exists and that it is not a directory
-        guard resourceValues.isRegularFile == true else { continue }
-
-        //check file extensions
-        let fileExtension = fileURL.pathExtension.lowercased()
-        guard fileExtension == "mp4" || fileExtension == "mkv" else { continue }
-
-        Task.detached {
-          let request = QLThumbnailGenerator.Request(fileAt: fileURL,
-                                                     size: CGSize(width: 256, height: 256),
-                                                     scale: NSScreen.main?.backingScaleFactor ?? 1,
-                                                     representationTypes: .thumbnail)
-          let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-          await MainActor.run {
-            photoAssets.append(.init(url: fileURL, thumbnail: imageToData(thumbnail.nsImage)!))
-            print("adding photoAssets \(photoAssets.count)")
-          }
-          await Task.yield()
+          print("Error enumerating '\(url.path)': \(error)")
+          return true // Continue enumeration even if there are errors with some files.
+        }) else {
+          print("Error: enumerator is nil")
+          return
         }
+        
+        // Collect all eligible files first
+        var eligibleFiles: [URL] = []
+        for case let fileURL as URL in enumerator {
+          let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
+          
+          // Check if the file exists and that it is not a directory
+          guard resourceValues.isRegularFile == true else { continue }
+          
+          // Check file extensions
+          let fileExtension = fileURL.pathExtension.lowercased()
+          guard fileExtension == "mp4" || fileExtension == "mkv" else { continue }
+          
+          eligibleFiles.append(fileURL)
+        }
+        
+        // Process files in parallel using task group
+        try await withThrowingDiscardingTaskGroup { group in
+          for fileURL in eligibleFiles {
+            group.addTask {
+              try await thumbnailExecutor.run {
+                let request = QLThumbnailGenerator.Request(
+                  fileAt: fileURL,
+                  size: CGSize(width: 256, height: 256),
+                  scale: NSScreen.main?.backingScaleFactor ?? 1,
+                  representationTypes: .thumbnail
+                )
+                
+                let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
+                
+                guard let thumbnailData = imageToData(thumbnail.nsImage) else {
+                  print("Failed to convert thumbnail to data for \(fileURL.lastPathComponent)")
+                  return
+                }
+                
+                await MainActor.run {
+                  photoAssets.append(.init(url: fileURL, thumbnail: thumbnailData))
+                  print("Adding photoAsset \(photoAssets.count): \(fileURL.lastPathComponent)")
+                }
+              }
+            }
+          }
+        }
+        
+        print("Hello world") // Print when all tasks are completed
+        print("Successfully generated thumbnails for \(photoAssets.count) files")
+        
+      } catch {
+        print("Error generating thumbnails: \(error)")
       }
-    } catch {
-      print("Error listing files: \(error)")
     }
-
-  }//func generateThumbnails
-
+  }
 }//struct ContentView
 
 
@@ -337,6 +361,24 @@ func imageToData(_ image: NSImage) -> Data? {
 // Helper Function to Convert Data to NSImage
 func dataToNSImage(_ data: Data) -> NSImage? {
   return NSImage(data: data)
+}
+
+// Custom TaskExecutor implementation
+extension DispatchQueue: @unchecked Sendable {
+  func run<T: Sendable>(operation: @escaping @Sendable () async throws -> T) async throws -> T {
+    return try await withCheckedThrowingContinuation { continuation in
+      self.async {
+        Task {
+          do {
+            let result = try await operation()
+            continuation.resume(returning: result)
+          } catch {
+            continuation.resume(throwing: error)
+          }
+        }
+      }
+    }
+  }
 }
 
 struct PhotoAsset: Identifiable, Codable {
