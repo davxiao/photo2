@@ -43,7 +43,7 @@ struct ThumbnailView: View {
         }
     }
   }
-}//end struct ThumbnailView
+}//struct ThumbnailView
 
 struct ContentView: View {
   @State private var isLoading = false
@@ -59,6 +59,9 @@ struct ContentView: View {
     case A2Z_creationDate
     case Z2A_creationDate
   }
+  //DEBUG: hard coded filename
+  private let indexfilename = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Downloads/file.yaml"
+  private let rawfilename = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Downloads/file.data"
 
 
   func generateThumbnailsfromFolder() {
@@ -72,7 +75,7 @@ struct ContentView: View {
         generateThumbnails(from: folderURL)
       }
     }
-  } //end func generateThumbnailsfromFolder
+  }//func generateThumbnailsfromFolder
 
 
   var body: some View {
@@ -105,8 +108,11 @@ struct ContentView: View {
           updateGridLayout()
         }
       }
+      .ignoresSafeArea(.all, edges: [.trailing])
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    .padding()
+    .padding(0)
+    .ignoresSafeArea(.all, edges: [.trailing])
     .navigationTitle("Photo2")
     .toolbar {
       ToolbarItem {
@@ -140,20 +146,110 @@ struct ContentView: View {
           print("generateThumbnailsfromFolder() completed!")
         }
       }
-      /*
       ToolbarItem {
         Button("Save File") {
-          saveThumbnailsToFile()
+          save()
         }
       }
       ToolbarItem {
         Button("Load File") {
-          loadThumbnailsFromFile()
+          load()
         }
       }
-       */
     }
   } //end var body: some View
+
+  func load() {
+    Task.detached {
+      do {
+        //order is important, loadIndex first
+        try await loadIndexFromYAML(filePath: indexfilename)
+        try await loadRawFromFile(filePath: rawfilename)
+      } catch {
+        print("Failed to load photo collection: \(error)")
+      }
+    }
+  }
+
+  func save() {
+    Task.detached {
+      do {
+        //order is important, saveRaw first
+        try await saveRawToFile(filePath: rawfilename)
+        try await saveIndexToYAML(filePath: indexfilename)
+      } catch {
+        print("Failed to save photo collection: \(error)")
+      }
+    }
+  }
+
+  func saveRawToFile(filePath: String) throws {
+    var offset: UInt64 = 0
+    do {
+      if !FileManager.default.fileExists(atPath: filePath) {
+        FileManager.default.createFile(atPath: filePath, contents: nil, attributes: nil)
+      }
+      let fileHandle = try FileHandle(forUpdating: URL(fileURLWithPath: filePath))
+
+      for index in photoAssets.indices {
+        try fileHandle.seek(toOffset: offset)
+        try fileHandle.write(contentsOf: photoAssets[index].thumbnail!)
+        photoAssets[index].thumbnail_offset = offset
+        photoAssets[index].thumbnail_len = UInt64(photoAssets[index].thumbnail!.count)
+        offset += photoAssets[index].thumbnail_len!
+      }
+      print("Total of \(offset) bytes saved to Rawfile: \(filePath)")
+    } catch {
+      print("Error writing to file: \(error)")
+      throw error
+    }
+  }
+
+  func saveIndexToYAML(filePath: String) throws {
+    do {
+      let fileURL = URL(fileURLWithPath: filePath)
+      let encoder = YAMLEncoder()
+      let yamlString = try encoder.encode(photoAssets)
+      try yamlString.write(to: fileURL, atomically: true, encoding: .utf8)
+      print("Saved index to \(filePath)")
+    } catch {
+      print("Error saving index: \(error)")
+      throw error
+    }
+  }
+
+  func loadIndexFromYAML(filePath: String) async throws {
+    let fileURL = URL(fileURLWithPath: filePath)
+    do {
+      let yamlString = try String(contentsOf: fileURL, encoding: .utf8)
+      let decoder = YAMLDecoder()
+      photoAssets = try decoder.decode([PhotoAsset].self, from: yamlString)
+      print("Successfully loaded photoAssets from \(filePath)")
+    } catch {
+      print("Error loading photoAssets from \(filePath): \(error)")
+      throw error
+    }
+  }
+
+  func loadRawFromFile(filePath: String) throws {
+    var totalBytesRead: UInt64 = 0
+    do {
+      if !FileManager.default.fileExists(atPath: filePath) {
+        FileManager.default.createFile(atPath: filePath, contents: nil, attributes: nil)
+      }
+      let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: filePath))
+
+      for index in photoAssets.indices {
+        try fileHandle.seek(toOffset: photoAssets[index].thumbnail_offset!)
+        try photoAssets[index].thumbnail = fileHandle.read(upToCount: Int(photoAssets[index].thumbnail_len!))
+        //After modifying assets you must reassign the modified assets array back to the collection using the key. This is how the changes are "kept" in the collection.
+        totalBytesRead += UInt64(photoAssets[index].thumbnail!.count)
+      }
+      print("Total of \(totalBytesRead) bytes read from \(filePath)")
+    } catch {
+      print("Error reading from file: \(error)")
+    }
+  }
 
   func updateGridLayout() {
     guard thumbnailSize.width > 0 else {
@@ -215,18 +311,16 @@ struct ContentView: View {
             photoAssets.append(.init(url: fileURL, thumbnail: imageToData(thumbnail.nsImage)!))
             print("adding photoAssets \(photoAssets.count)")
           }
+          await Task.yield()
         }
       }
     } catch {
       print("Error listing files: \(error)")
-      // Show an error to the user.
     }
-  }
-}
 
+  }//func generateThumbnails
 
-
-//end struct ContentView
+}//struct ContentView
 
 
 // Helper function to convert NSImage to Data
@@ -248,7 +342,7 @@ func dataToNSImage(_ data: Data) -> NSImage? {
 struct PhotoAsset: Identifiable, Codable {
   let id: String
   let url: URL
-  let fileName: String
+  var fileName: String { return url.lastPathComponent.isEmpty ? "/" : url.lastPathComponent }
   var thumbnail: Data?
   var creationDate: Date?
   var fileSize: UInt64?
@@ -258,17 +352,12 @@ struct PhotoAsset: Identifiable, Codable {
   init(url: URL) {
     self.id = UUID().uuidString
     self.url = url
-    self.fileName = url.lastPathComponent.isEmpty ? "/" : url.lastPathComponent
     self.creationDate = PhotoAsset.getCreationDate(for: url)
     self.fileSize = PhotoAsset.getFileSize(for: url)
   }
 
   init(url: URL, thumbnail: Data) {
-    self.id = UUID().uuidString
-    self.url = url
-    self.fileName = url.lastPathComponent.isEmpty ? "/" : url.lastPathComponent
-    self.creationDate = PhotoAsset.getCreationDate(for: url)
-    self.fileSize = PhotoAsset.getFileSize(for: url)
+    self.init(url: url)
     self.thumbnail = thumbnail
   }
 
@@ -304,15 +393,14 @@ struct PhotoAsset: Identifiable, Codable {
   }
 
   enum CodingKeys: String, CodingKey {
-    // do not save thumbnail here
-    case id, url, fileName, creationDate, fileSize, thumbnail_offset, thumbnail_len
+    // do not save thumbnail and fileName
+    case id, url, creationDate, fileSize, thumbnail_offset, thumbnail_len
   }
 
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(id, forKey: .id)
     try container.encode(url.absoluteString, forKey: .url)
-    try container.encode(fileName, forKey: .fileName)
     try container.encode(creationDate, forKey: .creationDate)
     try container.encode(fileSize, forKey: .fileSize)
     try container.encode(thumbnail_offset, forKey: .thumbnail_offset)
@@ -328,10 +416,9 @@ struct PhotoAsset: Identifiable, Codable {
     }
     self.url = url
 
-    fileName = try container.decode(String.self, forKey: .fileName)
-    creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate)
-    fileSize = try container.decodeIfPresent(UInt64.self, forKey: .fileSize)
-    thumbnail_offset = try container.decodeIfPresent(UInt64.self, forKey: .thumbnail_offset)
-    thumbnail_len = try container.decodeIfPresent(UInt64.self, forKey: .thumbnail_len)
+    creationDate = try container.decode(Date.self, forKey: .creationDate)
+    fileSize = try container.decode(UInt64.self, forKey: .fileSize)
+    thumbnail_offset = try container.decode(UInt64.self, forKey: .thumbnail_offset)
+    thumbnail_len = try container.decode(UInt64.self, forKey: .thumbnail_len)
   }
-}
+}//struct PhotoAsset
