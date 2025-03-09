@@ -283,121 +283,58 @@ struct ContentView: View {
   func generateThumbnails(from folderURL: URL) {
     loadedFolderURL = folderURL // Store for reloading
     photoAssets.removeAll() // Clear previous results from the view
+    isLoading = true
     
-    // Create a custom executor with a fixed thread pool
-    let thumbnailExecutor = DispatchQueue(label: "com.photo2.thumbnailExecutor", attributes: .concurrent)
+    // Create and configure the XPC connection
+    let connection = NSXPCConnection.makeServiceConnection()
+    connection.resume()
     
-    Task {
-      do {
-        let fileManager = FileManager.default
-        let directoryURL = folderURL
-        let taskCounter = TaskCounter()
-
-        // Check if the directory exists and is accessible
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-          print("Error: '\(directoryURL)' is not a valid directory or is inaccessible.")
-          return
+    // Get the remote object
+    guard let service = connection.remoteObjectProxyWithErrorHandler({ error in
+        print("XPC connection error: \(error)")
+        DispatchQueue.main.async {
+            self.isLoading = false
         }
-
-        let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey]
-        guard let enumerator = fileManager.enumerator(at: directoryURL,
-                                                    includingPropertiesForKeys: resourceKeys,
-                                                    options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants, .skipsPackageDescendants],
-                                                    errorHandler: { (url, error) -> Bool in
-          print("Error enumerating '\(url.path)': \(error)")
-          return true // Continue enumeration even if there are errors with some files.
-        }) else {
-          print("Error: enumerator is nil")
-          return
-        }
-        
-        // Collect all eligible files first
-        var eligibleFiles: [URL] = []
-        for case let fileURL as URL in enumerator {
-          let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
-          
-          // Check if the file exists and that it is not a directory
-          guard resourceValues.isRegularFile == true else { continue }
-          
-          // Check file extensions
-          let fileExtension = fileURL.pathExtension.lowercased()
-          guard fileExtension == "mp4" || fileExtension == "mkv" else { continue }
-          
-          eligibleFiles.append(fileURL)
-        }
-        
-        // Process files in parallel using task group with throttling
-        try await withThrowingDiscardingTaskGroup { group in
-          var fileIndex = 0
-          
-          // Process files in batches
-          while fileIndex < eligibleFiles.count {
-            // Check if we need to wait for tasks to complete
-            let pendingCount = await taskCounter.getCount()
-            if pendingCount > 10 {
-              print("Throttling: \(pendingCount) tasks pending. Waiting for tasks to complete...")
-              try await Task.sleep(for: .seconds(2))
-              continue
+    }) as? ThumbnailGeneratorProtocol else {
+        print("Failed to get remote object proxy")
+        isLoading = false
+        return
+    }
+    
+    // Call the service
+    service.generateThumbnails(fromDirectory: folderURL.path) { thumbnailResults, error in
+        // Handle the result on the main thread
+        DispatchQueue.main.async {
+            self.isLoading = false
+            
+            if let error = error {
+                print("Error generating thumbnails: \(error)")
+                return
             }
             
-            // Add up to 5 more tasks if we have fewer than 10 pending tasks
-            if pendingCount <= 5 {
-              let batchSize = min(5, eligibleFiles.count - fileIndex)
-              print("Adding batch of \(batchSize) tasks (pending: \(pendingCount))")
-              
-              for _ in 0..<batchSize {
-                let fileURL = eligibleFiles[fileIndex]
-                fileIndex += 1
-                await taskCounter.increment()
-                
-                group.addTask {
-                  defer { Task { await taskCounter.decrement() } }
-                  
-                  try await thumbnailExecutor.run {
-                    let request = QLThumbnailGenerator.Request(
-                      fileAt: fileURL,
-                      size: CGSize(width: 256, height: 256),
-                      scale: NSScreen.main?.backingScaleFactor ?? 1,
-                      representationTypes: .thumbnail
-                    )
-                    
-                    let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-                    
-                    guard let thumbnailData = imageToData(thumbnail.nsImage) else {
-                      print("Failed to convert thumbnail to data for \(fileURL.lastPathComponent)")
-                      return
-                    }
-                    
-                    await MainActor.run {
-                      photoAssets.append(.init(url: fileURL, thumbnail: thumbnailData))
-                      print("Adding photoAsset \(photoAssets.count): \(fileURL.lastPathComponent)")
-                    }
-                  }
-                }
-                
-                if fileIndex >= eligibleFiles.count {
-                  break
-                }
-              }
-            } else {
-              // If we have between 10-20 tasks, wait a bit before checking again
-              try await Task.sleep(for: .milliseconds(500))
+            guard let thumbnailResults = thumbnailResults else {
+                print("No thumbnails returned")
+                return
             }
-          }
-          
-          // Wait for all remaining tasks to complete
-          while await taskCounter.getCount() > 0 {
-            try await Task.sleep(for: .milliseconds(500))
-          }
+            
+            print("Received \(thumbnailResults.count) thumbnails from XPC service")
+            
+            // Convert the ThumbnailResult objects to PhotoAsset objects
+            for result in thumbnailResults {
+                if let url = URL(string: result.urlString) {
+                    var asset = PhotoAsset(url: url, thumbnail: result.thumbnailData)
+                    asset.creationDate = result.creationDate
+                    asset.fileSize = result.fileSize?.uint64Value
+                    self.photoAssets.append(asset)
+                }
+            }
+            
+            print("Hello world") // Print when all thumbnails are processed
+            print("Successfully generated thumbnails for \(self.photoAssets.count) files")
+            
+            // Invalidate the connection when done
+            connection.invalidate()
         }
-        
-        print("Hello world") // Print when all tasks are completed
-        print("Successfully generated thumbnails for \(photoAssets.count) files")
-        
-      } catch {
-        print("Error generating thumbnails: \(error)")
-      }
     }
   }
 }//struct ContentView

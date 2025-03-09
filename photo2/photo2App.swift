@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-@main
+
 struct photo2App: App {
   var body: some Scene {
     WindowGroup {

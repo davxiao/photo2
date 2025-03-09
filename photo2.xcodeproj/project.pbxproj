@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		477783852D742252002ECD82 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 477783842D742252002ECD82 /* Yams */; };
+		47AC8B542D7D74360064B7C0 /* ThumbnailGeneratorService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 47AC8B482D7D74360064B7C0 /* ThumbnailGeneratorService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,13 +26,45 @@
 			remoteGlobalIDString = 472743A12D73F21F004E48EF;
 			remoteInfo = photo2;
 		};
+		47AC8B522D7D74360064B7C0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4727439A2D73F21F004E48EF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 47AC8B472D7D74360064B7C0;
+			remoteInfo = ThumbnailGeneratorService;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		47AC8B592D7D74360064B7C0 /* Embed XPC Services */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
+			dstSubfolderSpec = 16;
+			files = (
+				47AC8B542D7D74360064B7C0 /* ThumbnailGeneratorService.xpc in Embed XPC Services */,
+			);
+			name = "Embed XPC Services";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		472743A22D73F21F004E48EF /* photo2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = photo2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		472743B32D73F220004E48EF /* photo2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = photo2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		472743BD2D73F220004E48EF /* photo2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = photo2UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		47AC8B482D7D74360064B7C0 /* ThumbnailGeneratorService.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = ThumbnailGeneratorService.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		47AC8B552D7D74360064B7C0 /* Exceptions for "ThumbnailGeneratorService" folder in "ThumbnailGeneratorService" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 47AC8B472D7D74360064B7C0 /* ThumbnailGeneratorService */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		472743A42D73F21F004E48EF /* photo2 */ = {
@@ -47,6 +80,14 @@
 		472743C02D73F220004E48EF /* photo2UITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = photo2UITests;
+			sourceTree = "<group>";
+		};
+		47AC8B492D7D74360064B7C0 /* ThumbnailGeneratorService */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				47AC8B552D7D74360064B7C0 /* Exceptions for "ThumbnailGeneratorService" folder in "ThumbnailGeneratorService" target */,
+			);
+			path = ThumbnailGeneratorService;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -74,6 +115,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		47AC8B452D7D74360064B7C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -83,6 +131,7 @@
 				472743A42D73F21F004E48EF /* photo2 */,
 				472743B62D73F220004E48EF /* photo2Tests */,
 				472743C02D73F220004E48EF /* photo2UITests */,
+				47AC8B492D7D74360064B7C0 /* ThumbnailGeneratorService */,
 				472743A32D73F21F004E48EF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,6 +142,7 @@
 				472743A22D73F21F004E48EF /* photo2.app */,
 				472743B32D73F220004E48EF /* photo2Tests.xctest */,
 				472743BD2D73F220004E48EF /* photo2UITests.xctest */,
+				47AC8B482D7D74360064B7C0 /* ThumbnailGeneratorService.xpc */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -107,10 +157,12 @@
 				4727439E2D73F21F004E48EF /* Sources */,
 				4727439F2D73F21F004E48EF /* Frameworks */,
 				472743A02D73F21F004E48EF /* Resources */,
+				47AC8B592D7D74360064B7C0 /* Embed XPC Services */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				47AC8B532D7D74360064B7C0 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				472743A42D73F21F004E48EF /* photo2 */,
@@ -169,6 +221,28 @@
 			productReference = 472743BD2D73F220004E48EF /* photo2UITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		47AC8B472D7D74360064B7C0 /* ThumbnailGeneratorService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 47AC8B562D7D74360064B7C0 /* Build configuration list for PBXNativeTarget "ThumbnailGeneratorService" */;
+			buildPhases = (
+				47AC8B442D7D74360064B7C0 /* Sources */,
+				47AC8B452D7D74360064B7C0 /* Frameworks */,
+				47AC8B462D7D74360064B7C0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				47AC8B492D7D74360064B7C0 /* ThumbnailGeneratorService */,
+			);
+			name = ThumbnailGeneratorService;
+			packageProductDependencies = (
+			);
+			productName = ThumbnailGeneratorService;
+			productReference = 47AC8B482D7D74360064B7C0 /* ThumbnailGeneratorService.xpc */;
+			productType = "com.apple.product-type.xpc-service";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -189,6 +263,9 @@
 					472743BC2D73F220004E48EF = {
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = 472743A12D73F21F004E48EF;
+					};
+					47AC8B472D7D74360064B7C0 = {
+						CreatedOnToolsVersion = 16.2;
 					};
 				};
 			};
@@ -212,6 +289,7 @@
 				472743A12D73F21F004E48EF /* photo2 */,
 				472743B22D73F220004E48EF /* photo2Tests */,
 				472743BC2D73F220004E48EF /* photo2UITests */,
+				47AC8B472D7D74360064B7C0 /* ThumbnailGeneratorService */,
 			);
 		};
 /* End PBXProject section */
@@ -232,6 +310,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		472743BB2D73F220004E48EF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		47AC8B462D7D74360064B7C0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -262,6 +347,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		47AC8B442D7D74360064B7C0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -274,6 +366,11 @@
 			isa = PBXTargetDependency;
 			target = 472743A12D73F21F004E48EF /* photo2 */;
 			targetProxy = 472743BE2D73F220004E48EF /* PBXContainerItemProxy */;
+		};
+		47AC8B532D7D74360064B7C0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 47AC8B472D7D74360064B7C0 /* ThumbnailGeneratorService */;
+			targetProxy = 47AC8B522D7D74360064B7C0 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -518,6 +615,50 @@
 			};
 			name = Release;
 		};
+		47AC8B572D7D74360064B7C0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ThumbnailGeneratorService/ThumbnailGeneratorService.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z4ZY63LS5Q;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ThumbnailGeneratorService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ThumbnailGeneratorService;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.davxiao.photo2.ThumbnailGeneratorService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		47AC8B582D7D74360064B7C0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ThumbnailGeneratorService/ThumbnailGeneratorService.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z4ZY63LS5Q;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ThumbnailGeneratorService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ThumbnailGeneratorService;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.davxiao.photo2.ThumbnailGeneratorService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -553,6 +694,15 @@
 			buildConfigurations = (
 				472743CE2D73F220004E48EF /* Debug */,
 				472743CF2D73F220004E48EF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		47AC8B562D7D74360064B7C0 /* Build configuration list for PBXNativeTarget "ThumbnailGeneratorService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47AC8B572D7D74360064B7C0 /* Debug */,
+				47AC8B582D7D74360064B7C0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
