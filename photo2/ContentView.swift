@@ -262,6 +262,24 @@ struct ContentView: View {
     gridLayout = Array(repeating: GridItem(.flexible(), spacing: 20), count: numberOfColumns)
   }//end func updateGridLayout
 
+  // Add this actor outside the ContentView struct
+  actor TaskCounter {
+    private var count = 0
+    
+    func increment() {
+      count += 1
+    }
+    
+    func decrement() {
+      count -= 1
+    }
+    
+    func getCount() -> Int {
+      return count
+    }
+  }
+
+  // Then modify the generateThumbnails function
   func generateThumbnails(from folderURL: URL) {
     loadedFolderURL = folderURL // Store for reloading
     photoAssets.removeAll() // Clear previous results from the view
@@ -273,6 +291,7 @@ struct ContentView: View {
       do {
         let fileManager = FileManager.default
         let directoryURL = folderURL
+        let taskCounter = TaskCounter()
 
         // Check if the directory exists and is accessible
         var isDirectory: ObjCBool = false
@@ -308,31 +327,68 @@ struct ContentView: View {
           eligibleFiles.append(fileURL)
         }
         
-        // Process files in parallel using task group
+        // Process files in parallel using task group with throttling
         try await withThrowingDiscardingTaskGroup { group in
-          for fileURL in eligibleFiles {
-            group.addTask {
-              try await thumbnailExecutor.run {
-                let request = QLThumbnailGenerator.Request(
-                  fileAt: fileURL,
-                  size: CGSize(width: 256, height: 256),
-                  scale: NSScreen.main?.backingScaleFactor ?? 1,
-                  representationTypes: .thumbnail
-                )
+          var fileIndex = 0
+          
+          // Process files in batches
+          while fileIndex < eligibleFiles.count {
+            // Check if we need to wait for tasks to complete
+            let pendingCount = await taskCounter.getCount()
+            if pendingCount > 10 {
+              print("Throttling: \(pendingCount) tasks pending. Waiting for tasks to complete...")
+              try await Task.sleep(for: .seconds(2))
+              continue
+            }
+            
+            // Add up to 5 more tasks if we have fewer than 10 pending tasks
+            if pendingCount <= 5 {
+              let batchSize = min(5, eligibleFiles.count - fileIndex)
+              print("Adding batch of \(batchSize) tasks (pending: \(pendingCount))")
+              
+              for _ in 0..<batchSize {
+                let fileURL = eligibleFiles[fileIndex]
+                fileIndex += 1
+                await taskCounter.increment()
                 
-                let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-                
-                guard let thumbnailData = imageToData(thumbnail.nsImage) else {
-                  print("Failed to convert thumbnail to data for \(fileURL.lastPathComponent)")
-                  return
+                group.addTask {
+                  defer { Task { await taskCounter.decrement() } }
+                  
+                  try await thumbnailExecutor.run {
+                    let request = QLThumbnailGenerator.Request(
+                      fileAt: fileURL,
+                      size: CGSize(width: 256, height: 256),
+                      scale: NSScreen.main?.backingScaleFactor ?? 1,
+                      representationTypes: .thumbnail
+                    )
+                    
+                    let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
+                    
+                    guard let thumbnailData = imageToData(thumbnail.nsImage) else {
+                      print("Failed to convert thumbnail to data for \(fileURL.lastPathComponent)")
+                      return
+                    }
+                    
+                    await MainActor.run {
+                      photoAssets.append(.init(url: fileURL, thumbnail: thumbnailData))
+                      print("Adding photoAsset \(photoAssets.count): \(fileURL.lastPathComponent)")
+                    }
+                  }
                 }
                 
-                await MainActor.run {
-                  photoAssets.append(.init(url: fileURL, thumbnail: thumbnailData))
-                  print("Adding photoAsset \(photoAssets.count): \(fileURL.lastPathComponent)")
+                if fileIndex >= eligibleFiles.count {
+                  break
                 }
               }
+            } else {
+              // If we have between 10-20 tasks, wait a bit before checking again
+              try await Task.sleep(for: .milliseconds(500))
             }
+          }
+          
+          // Wait for all remaining tasks to complete
+          while await taskCounter.getCount() > 0 {
+            try await Task.sleep(for: .milliseconds(500))
           }
         }
         
