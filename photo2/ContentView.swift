@@ -11,7 +11,7 @@ import System
 import Foundation
 import Yams
 @preconcurrency import QuickLookThumbnailing
-
+// The protocol is now defined in the main app, no need to import it
 
 struct ThumbnailView: View {
   let photoAsset: PhotoAsset
@@ -63,6 +63,41 @@ struct ContentView: View {
   private let indexfilename = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Downloads/file.yaml"
   private let rawfilename = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Downloads/file.data"
 
+  func xpc_generateThumbnailsfromFolder() {
+    let openPanel = NSOpenPanel()
+    openPanel.canChooseFiles = false
+    openPanel.canChooseDirectories = true
+    openPanel.allowsMultipleSelection = false
+
+    if openPanel.runModal() == .OK {
+      if let folderURL = openPanel.url {
+        // Create a connection to the XPC service
+        Task.detached {
+          let connection = NSXPCConnection(serviceName: "com.davxiao.photo2.ThumbnailGeneratorService")
+          connection.remoteObjectInterface = NSXPCInterface(with: ThumbnailGeneratorServiceProtocol.self)
+          connection.resume()
+
+          // Get a proxy to the service
+          if let proxy = connection.remoteObjectProxy as? ThumbnailGeneratorServiceProtocol {
+            // Call the performCalculation method
+            proxy.performCalculation(firstNumber: 1, secondNumber: 2) { result in
+              print("XPC Service calculation result: \(result)")
+
+              // Clean up the connection after we're done using modern Swift concurrency
+
+              connection.invalidate()
+              print("XPC connection invalidated")
+            }
+          } else {
+            print("Failed to get remote object proxy")
+            connection.invalidate()
+          }
+        }
+
+        //xpc_generateThumbnails(from: folderURL)
+      }
+    }
+  }
 
   func generateThumbnailsfromFolder() {
     let openPanel = NSOpenPanel()
@@ -141,9 +176,8 @@ struct ContentView: View {
       }
       ToolbarItem {
         Button("Select Video Folder") {
-          generateThumbnailsfromFolder()
-          //DEBUG
-          print("generateThumbnailsfromFolder() completed!")
+          xpc_generateThumbnailsfromFolder()
+          //generateThumbnailsfromFolder()
         }
       }
       ToolbarItem {
@@ -262,32 +296,47 @@ struct ContentView: View {
     gridLayout = Array(repeating: GridItem(.flexible(), spacing: 20), count: numberOfColumns)
   }//end func updateGridLayout
 
+  func xpc_generateThumbnails(from folderURL: URL)  {
+    print("XPC service would process thumbnails from folder: \(folderURL.path)")
+    // This would be where we'd implement the actual XPC service call to generate thumbnails
+    // For now, we're just testing the basic XPC connection with performCalculation
+  }
+
   func generateThumbnails(from folderURL: URL)  {
     loadedFolderURL = folderURL // Store for reloading
     photoAssets.removeAll() // Clear previous results from the view
 
-    do {
-      let fileManager = FileManager.default
-      let directoryURL = folderURL
 
-      // Check if the directory exists and is accessible
-      var isDirectory: ObjCBool = false
-      guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-        print("Error: '\(directoryURL)' is not a valid directory or is inaccessible.")
-        // Show an alert or update the UI to indicate the error.
-        return
+    let fileManager = FileManager.default
+    let directoryURL = folderURL
+
+    // Check if the directory exists and is accessible
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+      print("Error: '\(directoryURL)' is not a valid directory or is inaccessible.")
+      // Show an alert or update the UI to indicate the error.
+      return
+    }
+
+    Task.detached {
+      await MainActor.run {
+        isLoading = true
+        print("set isLoading = \(isLoading). line \(#line) at func \(#function)")
       }
-
       let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey]
       guard let enumerator = fileManager.enumerator(at: directoryURL,
                                                     includingPropertiesForKeys: resourceKeys,
                                                     options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants, .skipsPackageDescendants],
                                                     errorHandler: { (url, error) -> Bool in
         print("Error enumerating '\(url.path)': \(error)")
-        return true // Continue enumeration even if there are errors with some files.
+        return true // return true means continue the enumeration even if there are errors with some files.
       }) else {
         //show error and alert
         print("Error: enumerator is nil")
+        await MainActor.run {
+          isLoading = false
+          print("set isLoading = \(isLoading). line \(#line) at func \(#function)")
+        }
         return
       }
 
@@ -301,22 +350,25 @@ struct ContentView: View {
         let fileExtension = fileURL.pathExtension.lowercased()
         guard fileExtension == "mp4" || fileExtension == "mkv" else { continue }
 
-        Task.detached {
-          let request = QLThumbnailGenerator.Request(fileAt: fileURL,
-                                                     size: CGSize(width: 256, height: 256),
-                                                     scale: NSScreen.main?.backingScaleFactor ?? 1,
-                                                     representationTypes: .thumbnail)
-          let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-          await MainActor.run {
-            photoAssets.append(.init(url: fileURL, thumbnail: imageToData(thumbnail.nsImage)!))
-            print("adding photoAssets \(photoAssets.count)")
-          }
-          await Task.yield()
+        let request = QLThumbnailGenerator.Request(fileAt: fileURL,
+                                                   size: CGSize(width: 256, height: 256),
+                                                   scale: NSScreen.main?.backingScaleFactor ?? 1,
+                                                   representationTypes: .thumbnail)
+        let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
+        await MainActor.run {
+          photoAssets.append(.init(url: fileURL, thumbnail: imageToData(thumbnail.nsImage)!))
+          print("adding photoAssets \(photoAssets.count)")
         }
+      }//end for loop
+
+      await MainActor.run {
+        isLoading = false
+        print("all thumbnails are generated.")
+        print("set isLoading = \(isLoading). line \(#line) at func \(#function)")
       }
-    } catch {
-      print("Error listing files: \(error)")
+
     }
+
 
   }//func generateThumbnails
 
