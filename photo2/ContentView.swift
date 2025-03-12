@@ -11,12 +11,12 @@ import System
 import Foundation
 import Yams
 @preconcurrency import QuickLookThumbnailing
-// The protocol is now defined in the main app, no need to import it
+
 
 struct ThumbnailView: View {
   let photoAsset: PhotoAsset
   let thumbnailSize: CGSize
-
+  
   var body: some View {
     VStack {
       if let thumbnailData = photoAsset.thumbnail, let thumbnail = dataToNSImage(thumbnailData) {
@@ -33,7 +33,7 @@ struct ThumbnailView: View {
         ProgressView()
           .frame(width: thumbnailSize.width, height: thumbnailSize.height)
       }
-
+      
       Text(photoAsset.fileName)
         .lineLimit(1)
         .font(.system(size: 16))
@@ -62,57 +62,34 @@ struct ContentView: View {
   //DEBUG: hard coded filename
   private let indexfilename = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Downloads/file.yaml"
   private let rawfilename = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Downloads/file.data"
-
+  
   func xpc_generateThumbnailsfromFolder() {
     let openPanel = NSOpenPanel()
     openPanel.canChooseFiles = false
     openPanel.canChooseDirectories = true
     openPanel.allowsMultipleSelection = false
-
+    
     if openPanel.runModal() == .OK {
       if let folderURL = openPanel.url {
-        // Create a connection to the XPC service
-        Task.detached {
-          let connection = NSXPCConnection(serviceName: "com.davxiao.photo2.ThumbnailGeneratorService")
-          connection.remoteObjectInterface = NSXPCInterface(with: ThumbnailGeneratorServiceProtocol.self)
-          connection.resume()
-
-          // Get a proxy to the service
-          if let proxy = connection.remoteObjectProxy as? ThumbnailGeneratorServiceProtocol {
-            // Call the performCalculation method
-            proxy.performCalculation(firstNumber: 1, secondNumber: 2) { result in
-              print("XPC Service calculation result: \(result)")
-
-              // Clean up the connection after we're done using modern Swift concurrency
-
-              connection.invalidate()
-              print("XPC connection invalidated")
-            }
-          } else {
-            print("Failed to get remote object proxy")
-            connection.invalidate()
-          }
-        }
-
-        //xpc_generateThumbnails(from: folderURL)
+        xpc_generateThumbnails(from: folderURL)
       }
     }
   }
-
+  
   func generateThumbnailsfromFolder() {
     let openPanel = NSOpenPanel()
     openPanel.canChooseFiles = false
     openPanel.canChooseDirectories = true
     openPanel.allowsMultipleSelection = false
-
+    
     if openPanel.runModal() == .OK {
       if let folderURL = openPanel.url {
         generateThumbnails(from: folderURL)
       }
     }
   }//func generateThumbnailsfromFolder
-
-
+  
+  
   var body: some View {
     GeometryReader { geometry in
       ScrollView {
@@ -176,8 +153,8 @@ struct ContentView: View {
       }
       ToolbarItem {
         Button("Select Video Folder") {
-          xpc_generateThumbnailsfromFolder()
-          //generateThumbnailsfromFolder()
+          generateThumbnailsfromFolder()
+          //xpc_generateThumbnailsfromFolder()
         }
       }
       ToolbarItem {
@@ -192,7 +169,7 @@ struct ContentView: View {
       }
     }
   } //end var body: some View
-
+  
   func load() {
     Task.detached {
       do {
@@ -204,7 +181,7 @@ struct ContentView: View {
       }
     }
   }
-
+  
   func save() {
     Task.detached {
       do {
@@ -216,7 +193,7 @@ struct ContentView: View {
       }
     }
   }
-
+  
   func saveRawToFile(filePath: String) throws {
     var offset: UInt64 = 0
     do {
@@ -224,7 +201,7 @@ struct ContentView: View {
         FileManager.default.createFile(atPath: filePath, contents: nil, attributes: nil)
       }
       let fileHandle = try FileHandle(forUpdating: URL(fileURLWithPath: filePath))
-
+      
       for index in photoAssets.indices {
         try fileHandle.seek(toOffset: offset)
         try fileHandle.write(contentsOf: photoAssets[index].thumbnail!)
@@ -238,7 +215,7 @@ struct ContentView: View {
       throw error
     }
   }
-
+  
   func saveIndexToYAML(filePath: String) throws {
     do {
       let fileURL = URL(fileURLWithPath: filePath)
@@ -251,7 +228,7 @@ struct ContentView: View {
       throw error
     }
   }
-
+  
   func loadIndexFromYAML(filePath: String) async throws {
     let fileURL = URL(fileURLWithPath: filePath)
     do {
@@ -264,7 +241,7 @@ struct ContentView: View {
       throw error
     }
   }
-
+  
   func loadRawFromFile(filePath: String) throws {
     var totalBytesRead: UInt64 = 0
     do {
@@ -272,7 +249,7 @@ struct ContentView: View {
         FileManager.default.createFile(atPath: filePath, contents: nil, attributes: nil)
       }
       let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: filePath))
-
+      
       for index in photoAssets.indices {
         try fileHandle.seek(toOffset: photoAssets[index].thumbnail_offset!)
         try photoAssets[index].thumbnail = fileHandle.read(upToCount: Int(photoAssets[index].thumbnail_len!))
@@ -284,32 +261,47 @@ struct ContentView: View {
       print("Error reading from file: \(error)")
     }
   }
-
+  
   func updateGridLayout() {
     guard thumbnailSize.width > 0 else {
       gridLayout = [GridItem(.flexible())]
       return
     }
-
+    
     let availableWidth = windowWidth - 40
     let numberOfColumns = max(1, Int(availableWidth / (thumbnailSize.width + 20)))
     gridLayout = Array(repeating: GridItem(.flexible(), spacing: 20), count: numberOfColumns)
   }//end func updateGridLayout
-
+  
   func xpc_generateThumbnails(from folderURL: URL)  {
-    print("XPC service would process thumbnails from folder: \(folderURL.path)")
-    // This would be where we'd implement the actual XPC service call to generate thumbnails
-    // For now, we're just testing the basic XPC connection with performCalculation
   }
-
+  
+  func remove_nonexist_thumbnails() {
+    let fileManager = FileManager.default
+    photoAssets.removeAll { asset in
+      let fileURL = asset.url
+      if fileManager.fileExists(atPath: fileURL.path) {
+        return false // Keep the asset
+      } else {
+        print("removing thumbnail as file does not exist \(asset.url)")
+        return true // Remove the asset
+      }
+    }
+  }
+  
   func generateThumbnails(from folderURL: URL)  {
+    if loadedFolderURL != nil && loadedFolderURL != folderURL {
+      photoAssets.removeAll()
+    }
     loadedFolderURL = folderURL // Store for reloading
-    photoAssets.removeAll() // Clear previous results from the view
-
-
+    
+    //scan the photoassets and remove files that do not exist
+    remove_nonexist_thumbnails()
+    
+    
     let fileManager = FileManager.default
     let directoryURL = folderURL
-
+    
     // Check if the directory exists and is accessible
     var isDirectory: ObjCBool = false
     guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -317,8 +309,8 @@ struct ContentView: View {
       // Show an alert or update the UI to indicate the error.
       return
     }
-
-    Task.detached {
+    
+    Task {
       await MainActor.run {
         isLoading = true
         print("set isLoading = \(isLoading). line \(#line) at func \(#function)")
@@ -339,17 +331,38 @@ struct ContentView: View {
         }
         return
       }
-
+      
+      var dbg_count: Int = 0
       for case let fileURL as URL in enumerator {
         let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
-
+        
         //check if the file exists and that it is not a directory
         guard resourceValues.isRegularFile == true else { continue }
-
+        
         //check file extensions
         let fileExtension = fileURL.pathExtension.lowercased()
-        guard fileExtension == "mp4" || fileExtension == "mkv" else { continue }
-
+        guard fileExtension == "mp4" else { continue }
+        
+        //if the thumbnail exists and file has not changed then skip to next
+        let temp_Asset = PhotoAsset(url: fileURL)
+        if let foundAsset = photoAssets.first(where: { $0.url == fileURL }) {
+          if temp_Asset.url == foundAsset.url {
+            if temp_Asset.creationDate == foundAsset.creationDate &&
+                temp_Asset.fileSize == foundAsset.fileSize {
+              //DEBUG
+              print("skipping \(fileURL)")
+              continue
+            } else {
+              //file exists but either size or creationdate has changed, remove the existing thumbnail
+              photoAssets.removeAll(where: { $0.url == fileURL })
+            }
+          }
+        }
+        
+        //DEBUG
+        dbg_count+=1
+        print("processing \(dbg_count) \(fileURL)")
+        
         let request = QLThumbnailGenerator.Request(fileAt: fileURL,
                                                    size: CGSize(width: 256, height: 256),
                                                    scale: NSScreen.main?.backingScaleFactor ?? 1,
@@ -359,25 +372,26 @@ struct ContentView: View {
           photoAssets.append(.init(url: fileURL, thumbnail: imageToData(thumbnail.nsImage)!))
           print("adding photoAssets \(photoAssets.count)")
         }
+        
       }//end for loop
-
+      
       await MainActor.run {
         isLoading = false
-        print("all thumbnails are generated.")
+        print("all thumbnails are refreshed.")
         print("set isLoading = \(isLoading). line \(#line) at func \(#function)")
       }
-
+      
     }
-
-
+    
+    
   }//func generateThumbnails
-
+  
 }//struct ContentView
 
 
 // Helper function to convert NSImage to Data
 func imageToData(_ image: NSImage) -> Data? {
-
+  
   guard let tiffRepresentation = image.tiffRepresentation,
         let bitmapImage = NSBitmapImageRep(data: tiffRepresentation) else {
     return nil
@@ -400,19 +414,19 @@ struct PhotoAsset: Identifiable, Codable {
   var fileSize: UInt64?
   var thumbnail_offset: UInt64?
   var thumbnail_len: UInt64?
-
+  
   init(url: URL) {
     self.id = UUID().uuidString
     self.url = url
     self.creationDate = PhotoAsset.getCreationDate(for: url)
     self.fileSize = PhotoAsset.getFileSize(for: url)
   }
-
+  
   init(url: URL, thumbnail: Data) {
     self.init(url: url)
     self.thumbnail = thumbnail
   }
-
+  
   static func getCreationDate(for url: URL) -> Date? {
     do {
       let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -422,7 +436,7 @@ struct PhotoAsset: Identifiable, Codable {
       return nil
     }
   }
-
+  
   static func getFileSize(for url: URL) -> UInt64? {
     do {
       let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -435,7 +449,7 @@ struct PhotoAsset: Identifiable, Codable {
   //Asynchronously loads the thumbnail from the disk.  Returns the image Data.
   func loadThumbnail() async -> Data? {
     if self.thumbnail != nil { return self.thumbnail }
-
+    
     return await MainActor.run {
       guard let image = NSImage(contentsOf: self.url) else { return nil }
       image.size = NSSize(width: 100, height: 100)
@@ -443,12 +457,12 @@ struct PhotoAsset: Identifiable, Codable {
       return imageToData(image)
     }
   }
-
+  
   enum CodingKeys: String, CodingKey {
     // do not save thumbnail and fileName
     case id, url, creationDate, fileSize, thumbnail_offset, thumbnail_len
   }
-
+  
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(id, forKey: .id)
@@ -458,7 +472,7 @@ struct PhotoAsset: Identifiable, Codable {
     try container.encode(thumbnail_offset, forKey: .thumbnail_offset)
     try container.encode(thumbnail_len, forKey: .thumbnail_len)
   }
-
+  
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     id = try container.decode(String.self, forKey: .id)
@@ -467,7 +481,7 @@ struct PhotoAsset: Identifiable, Codable {
       throw DecodingError.dataCorruptedError(forKey: .url, in: container, debugDescription: "Invalid URL string")
     }
     self.url = url
-
+    
     creationDate = try container.decode(Date.self, forKey: .creationDate)
     fileSize = try container.decode(UInt64.self, forKey: .fileSize)
     thumbnail_offset = try container.decode(UInt64.self, forKey: .thumbnail_offset)
